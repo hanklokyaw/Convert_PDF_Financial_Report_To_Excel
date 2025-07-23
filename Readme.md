@@ -28,25 +28,25 @@ pip install -r requirements.txt
 Windows:
 Download Poppler from Poppler releases, extract, and add the Library\bin folder to your System PATH.
 
-macOS:
+- macOS:
 ```bash
 brew install poppler
 ```
 
-Linux:
+- Linux:
 ```bash
 sudo apt-get install poppler-utils
 ```
 
-3. Obtain and set your Gemini API key
+### 3. Obtain and set your Gemini API key
 Set the environment variable:
 
-macOS/Linux:
+- macOS/Linux:
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
 ```
 
-Windows (PowerShell):
+- Windows (PowerShell):
 ```bash
 $Env:GEMINI_API_KEY = "your_api_key_here"
 ```
