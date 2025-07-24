@@ -45,7 +45,9 @@ def process_image_to_base64(uploaded_file):
 
 # --- Gemini API Call ---
 def extract_financial_data(image_base64, mime_type):
-    prompt = """Extract these financial tables:
+    prompt = """
+    You are a professional finance expert. 
+    Help me to extract these financial tables:
     - Income Statement (Field, Value)
     - Balance Sheet (Field, Value) 
     - Cash Flow (Field, Value)
