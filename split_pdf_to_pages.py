@@ -1,91 +1,66 @@
 import os
-import json
+from google import genai
 from datetime import datetime
-from pypdf import PdfReader, PdfWriter
-from pdf2image import convert_from_path
 
-def split_pdf_to_pages(input_pdf_path, output_folder, poppler_path=None, log_path="convert_pdf_log.txt"):
+def upload_pdf_and_verify(pdf_path):
     """
-    Split PDF into single pages and convert to JPEGs, logging the process.
+    Uploads a PDF to Gemini API and verifies its presence in the uploaded file list.
 
     Args:
-        input_pdf_path (str): Path to the input PDF file.
-        output_folder (str): Folder to save split pages and JPEGs.
-        poppler_path (str, optional): Path to poppler binaries (Windows only).
-        log_path (str): Path to log file where the result will be appended.
+        pdf_path (str): Path to the local PDF file.
 
     Returns:
-        dict: Summary including success count, total, failed list, and log path.
+        dict: Upload status and verification info.
     """
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError("GEMINI_API_KEY not found in environment variables.")
 
-    base_filename = os.path.basename(input_pdf_path)
-    reader = PdfReader(input_pdf_path)
-    total_pages = len(reader.pages)
-    success_count = 0
-    failed_pages = []
-    output_files = []
-    failure_reasons = {}
+    # Configure Gemini client
+    genai.configure(api_key=api_key)
+    client = genai.Client()
 
-    for i, page in enumerate(reader.pages):
-        try:
-            # Save individual PDF page
-            writer = PdfWriter()
-            writer.add_page(page)
-            page_pdf_path = os.path.join(output_folder, f"page_{i+1}.pdf")
-            with open(page_pdf_path, "wb") as f:
-                writer.write(f)
+    print(f"Uploading PDF: {pdf_path}")
+    try:
+        uploaded_file = client.files.upload(
+            file=pdf_path,
+            config={"mime_type": "application/pdf"}
+        )
+    except Exception as e:
+        return {"error": f"Upload failed: {e}"}
 
-            # Convert to JPEG
-            images = convert_from_path(
-                page_pdf_path,
-                dpi=200,
-                poppler_path=poppler_path,
-                first_page=1,
-                last_page=1
-            )
-            jpeg_path = os.path.join(output_folder, f"page_{i+1}.jpg")
-            images[0].save(jpeg_path, "JPEG")
+    print(f"✅ Upload complete: {uploaded_file.name}")
 
-            output_files.append((page_pdf_path, jpeg_path))
-            success_count += 1
-        except Exception as e:
-            reason = str(e)
-            print(f"❌ Error processing page {i+1}: {reason}")
-            failed_pages.append(i + 1)
-            failure_reasons[i + 1] = reason
+    # Check file presence via listing
+    files_list = list(client.files.list())
+    found_file = next((f for f in files_list if f.name == uploaded_file.name), None)
 
-    # Create log entry
-    log_entry = {
-        "source_file": base_filename,
+    result = {
+        "source_file": os.path.basename(pdf_path),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "success_count": success_count,
-        "total_pages": total_pages,
-        "failed_pages": failed_pages,
-        "failure_reasons": failure_reasons
+        "uploaded_file": {
+            "name": uploaded_file.name,
+            "display_name": getattr(uploaded_file, "display_name", None),
+            "mime_type": uploaded_file.mime_type,
+            "state": getattr(uploaded_file, "state", None),
+            "create_time": getattr(uploaded_file, "create_time", None),
+        },
+        "found_in_list": bool(found_file),
+        "verified_file_info": {
+            "name": found_file.name,
+            "state": getattr(found_file, "state", None),
+            "mime_type": found_file.mime_type,
+            "create_time": getattr(found_file, "create_time", None),
+        } if found_file else None
     }
 
-    # Append to log file
-    with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    return result
 
-    return {
-        "log": log_entry,
-        "output_files": output_files,
-        "log_file": log_path
-    }
-
-# ---------- Run the function ----------
+# ---------- Run it ----------
 if __name__ == "__main__":
-    result = split_pdf_to_pages(
-        input_pdf_path="input/sample_financial_report_COST-2024.pdf",
-        output_folder="output",
-        poppler_path=r"C:\Program Files (x86)\poppler-24.08.0\Library\bin"  # download and install poppler https://github.com/oschwartz10612/poppler-windows/releases
-    )
+    pdf_path = "input/sample_financial_report_COST-2024.pdf"
+    result = upload_pdf_and_verify(pdf_path)
 
-    log_data = result["log"]
-    print(f"\n✅ Completed: {log_data['success_count']}/{log_data['total_pages']} pages succeeded.")
-    if log_data["failed_pages"]:
-        print(f"❌ Failed pages: {log_data['failed_pages']}")
-        print(f"📄 Full log written to: {result['log_file']}")
+    print("\n=== Upload Report ===")
+    for k, v in result.items():
+        print(f"{k}: {v}")
