@@ -2,67 +2,63 @@ import os
 from google import genai
 from datetime import datetime
 
-api_key = os.getenv("GEMINI_API_KEY")
-
-def upload_pdf_and_verify(path_to_pdf):
+def upload_pdf_and_verify(pdf_path):
     """
-    Uploads a PDF file and verifies its presence via listing.
+    Uploads a PDF to Gemini API and verifies its presence in the uploaded file list.
 
     Args:
-        path_to_pdf (str): Path to the PDF file to upload.
+        pdf_path (str): Path to the local PDF file.
 
     Returns:
-        dict: Details including upload result and listing verification.
+        dict: Upload status and verification info.
     """
-    client = genai.Client()
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError("❌ GEMINI_API_KEY not found in environment variables.")
 
-    print(f"Uploading file: {path_to_pdf} …")
-    myfile = client.files.upload(
-        file=path_to_pdf,
-        config={"mime_type": "application/pdf"}
-    )
-    print(f"Upload complete: name={myfile.name}, state={getattr(myfile, 'state', None)}")
+    # ✅ Create the Client with the API key
+    client = genai.Client(api_key=api_key)
 
-    # Now list files to check presence
-    print("Listing recent files …")
+    print(f"📤 Uploading PDF: {pdf_path}")
+    try:
+        uploaded_file = client.files.upload(
+            file=pdf_path,
+            config={"mime_type": "application/pdf"}
+        )
+    except Exception as e:
+        return {"error": f"❌ Upload failed: {e}"}
+
+    print(f"✅ Upload complete: {uploaded_file.name}")
+
+    # Check file presence via listing
     files_list = list(client.files.list())
-    # Each f has f.name, f.display_name, f.mime_type, f.state, f.create_time, etc.
-
-    found = None
-    for f in files_list:
-        if f.name == myfile.name:
-            found = f
-            break
+    found_file = next((f for f in files_list if f.name == uploaded_file.name), None)
 
     result = {
-        "uploaded": {
-            "name": myfile.name,
-            "display_name": getattr(myfile, "display_name", None),
-            "mime_type": myfile.mime_type,
-            "state": getattr(myfile, "state", None),
-            "create_time": getattr(myfile, "create_time", None),
+        "source_file": os.path.basename(pdf_path),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "uploaded_file": {
+            "name": uploaded_file.name,
+            "mime_type": uploaded_file.mime_type,
+            "state": getattr(uploaded_file, "state", None),
+            "create_time": getattr(uploaded_file, "create_time", None),
         },
-        "listing_checked": bool(found),
-        "found_details": None
+        "found_in_list": bool(found_file),
+        "verified_file_info": {
+            "name": found_file.name,
+            "state": getattr(found_file, "state", None),
+            "mime_type": found_file.mime_type,
+            "create_time": getattr(found_file, "create_time", None),
+        } if found_file else None
     }
-
-    if found:
-        result["found_details"] = {
-            "name": found.name,
-            "display_name": getattr(found, "display_name", None),
-            "mime_type": found.mime_type,
-            "state": getattr(found, "state", None),
-            "create_time": getattr(found, "create_time", None),
-        }
 
     return result
 
+# ---------- Run it ----------
 if __name__ == "__main__":
-    pdf_path = "path/to/your/document.pdf"
+    pdf_path = "input/sample_financial_report_COST-2024.pdf"
     outcome = upload_pdf_and_verify(pdf_path)
 
-    print("\n=== Upload Outcome ===")
-    print(f"Uploaded: {outcome['uploaded']}")
-    print(f"Found in list? {outcome['listing_checked']}")
-    if outcome['found_details']:
-        print(f"File state: {outcome['found_details']['state']}")
+    print("\n=== Upload Report ===")
+    for key, value in outcome.items():
+        print(f"{key}: {value}")
