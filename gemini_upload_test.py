@@ -39,20 +39,53 @@ print(f"✅ File state: {uploaded_pdf.state}")
 def extract_financial_data(pdf_part):
     prompt = """
 You are a professional financial analyst.
-Extract the full Income Statement from the financial report.
 
-Return it in **valid JSON** as a list of dictionaries like this:
+Please extract the full Income Statement from the document.
+
+Instructions:
+1. Detect and return the unit of measurement (e.g., "USD", "USD in thousands", or "USD in millions") in a top-level field called `unit`. This is for informational purposes only.
+2. Regardless of unit, return **fully scaled numeric values** (e.g., 249625000).
+3. Return the Income Statement as a list of dictionaries, one row per metric, under the key `"Income Statement"`.
+4. Sort the years in descending order (e.g., "2024", "2023", "2022").
+5. If any additional line items not included in the template appear in the financial statement, insert them into the appropriate logical position.
+6. Output must be **strictly valid JSON**, with no markdown or explanation.
+
+Example format:
 
 {
   "Income Statement": [
-    {"Metric": "Revenue", "2022": "10000", "2023": "11000"},
-    {"Metric": "COGS", "2022": "4000", "2023": "4500"},
-    {"Metric": "Gross Profit", "2022": "6000", "2023": "6500"},
-    ...
+    { "Metric": "Revenue", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Cost of Goods Sold (COGS)", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Gross Profit", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Operating Expenses", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Selling, General & Admin (SG&A)", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Research & Development (R&D)", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Operating Income", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Interest Income", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Interest Expense", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Other Income (Expense), net", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Income Before Tax", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Income Tax Expense", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Net Income", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Net Income Attributable to Non-Controlling Interest", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Net Income Attributable to Parent", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Earnings Per Share (EPS) - Basic", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Earnings Per Share (EPS) - Diluted", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Weighted Average Shares Outstanding - Basic", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Weighted Average Shares Outstanding - Diluted", "2022": "", "2023": "", "2024": "" }
   ]
 }
 
-⚠️ Return only valid JSON. Do not explain anything.
+⚠️ Do not explain anything. Return only valid JSON.
+
+Return **only valid JSON** and **do not add explanations**.
+
 """
     try:
         response = client.models.generate_content(
@@ -100,15 +133,30 @@ def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_d
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         for section_name, section_data in json_data.items():
-            try:
-                df = pd.DataFrame(section_data)
-                df.to_excel(writer, sheet_name=section_name[:31], index=False)  # Max 31 chars
-            except Exception as e:
-                print(f"⚠️ Could not write sheet '{section_name}': {e}")
+            if isinstance(section_data, list):
+                try:
+                    df = pd.DataFrame(section_data)
+                    if not df.empty:
+                        # Insert unit as header
+                        unit = json_data.get("unit", "")
+                        unit_row = pd.DataFrame([[unit] + [""] * (df.shape[1] - 1)], columns=df.columns)
+                        df = pd.concat([unit_row, df], ignore_index=True)
+
+                    df.to_excel(writer, sheet_name=section_name[:31], index=False)
+                except Exception as e:
+                    print(f"⚠️ Could not write sheet '{section_name}': {e}")
+            else:
+                print(f"ℹ️ Skipping non-table key: '{section_name}'")
     output.seek(0)
     with open(filename, "wb") as f:
         f.write(output.read())
     print(f"📁 Excel saved to: {filename}")
     return output
+
+
+# ---------- Extract and display unit ----------
+unit = json_data.get("unit", "USD")  # Default fallback
+print(f"\n📐 Unit of Measurement: {unit}")
+
 
 create_excel_dynamic(json_data)
