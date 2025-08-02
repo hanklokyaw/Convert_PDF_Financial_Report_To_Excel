@@ -4,25 +4,9 @@ import json
 import re
 import pandas as pd
 from io import BytesIO
-from typing import List, Optional
+from typing import Dict, Any
 from google import genai
 from google.genai.types import Part
-from pydantic import BaseModel
-
-# ---------- Models ----------
-class Record(BaseModel):
-    Field: str
-    Value: Optional[str]
-
-    def dict(self, *args, **kwargs):
-        d = super().model_dump(*args, **kwargs)
-        d["Value"] = d["Value"] or ""  # Convert None to empty string for Excel
-        return d
-
-class DocumentOutput(BaseModel):
-    income_statement: List[Record] = []
-    balance_sheet: List[Record] = []
-    cash_flow: List[Record] = []
 
 # ---------- Config ----------
 api_key = os.getenv("GEMINI_API_KEY")
@@ -54,18 +38,22 @@ print(f"✅ File state: {uploaded_pdf.state}")
 # ---------- Send Prompt to Gemini ----------
 def extract_financial_data(pdf_part):
     prompt = """
-You are a professional finance expert.
-Help me to extract full financial statement from the report:
-- Income Statement
-- Balance Sheet (Field, Value)
-- Cash Flow (Field, Value)
+You are a professional financial analyst.
+Extract the full Income Statement from the financial report.
 
-Return ONLY valid JSON in this format:
+Return it in **valid JSON** as a list of dictionaries like this:
+
 {
-  "Income Statement": [{"Field":"...","Value":"..."}],
-  "Balance Sheet": [{"Field":"...","Value":"..."}],
-  "Cash Flow": [{"Field":"...","Value":"..."}]
-}"""
+  "Income Statement": [
+    {"Metric": "Revenue", "2022": "10000", "2023": "11000"},
+    {"Metric": "COGS", "2022": "4000", "2023": "4500"},
+    {"Metric": "Gross Profit", "2022": "6000", "2023": "6500"},
+    ...
+  ]
+}
+
+⚠️ Return only valid JSON. Do not explain anything.
+"""
     try:
         response = client.models.generate_content(
             model=model_name,
@@ -84,52 +72,43 @@ pdf_part = Part.from_uri(
 
 result_text = extract_financial_data(pdf_part)
 
+# ---------- Clean and Parse JSON ----------
 def extract_json_from_markdown(text: str) -> str:
-    """Extract JSON from code block if Gemini returns markdown"""
     if text.startswith("```json") or text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text.strip())
         text = re.sub(r"\s*```$", "", text)
     return text.strip()
 
-# ---------- Parse JSON ----------
 if not result_text:
     raise RuntimeError("❌ No response from Gemini.")
 
 try:
-    # Clean markdown-style JSON formatting
     cleaned = extract_json_from_markdown(result_text)
-
-    json_data = json.loads(cleaned)
-    output_data = DocumentOutput(
-        income_statement=[Record(**r) for r in json_data.get("Income Statement", [])],
-        balance_sheet=[Record(**r) for r in json_data.get("Balance Sheet", [])],
-        cash_flow=[Record(**r) for r in json_data.get("Cash Flow", [])]
-    )
+    json_data: Dict[str, Any] = json.loads(cleaned)
 except json.JSONDecodeError as e:
     print("❌ JSON decode failed:", str(e))
     print("Raw cleaned response:\n", cleaned)
     raise
-except Exception as e:
-    print("❌ Parsing or validation error:", str(e))
-    raise
+
+# ---------- Convert to DataFrame ----------
+df_income = pd.DataFrame(json_data.get("Income Statement", []))
+print("\n📊 Income Statement Preview:")
+print(df_income.head())
 
 # ---------- Write to Excel ----------
-def create_excel(data: DocumentOutput, filename: str = "financial_data.xlsx") -> BytesIO:
+def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_data_dynamic.xlsx") -> BytesIO:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        if data.income_statement:
-            pd.DataFrame([r.dict() for r in data.income_statement]).to_excel(
-                writer, sheet_name="Income Statement", index=False)
-        if data.balance_sheet:
-            pd.DataFrame([r.dict() for r in data.balance_sheet]).to_excel(
-                writer, sheet_name="Balance Sheet", index=False)
-        if data.cash_flow:
-            pd.DataFrame([r.dict() for r in data.cash_flow]).to_excel(
-                writer, sheet_name="Cash Flow", index=False)
+        for section_name, section_data in json_data.items():
+            try:
+                df = pd.DataFrame(section_data)
+                df.to_excel(writer, sheet_name=section_name[:31], index=False)  # Max 31 chars
+            except Exception as e:
+                print(f"⚠️ Could not write sheet '{section_name}': {e}")
     output.seek(0)
     with open(filename, "wb") as f:
         f.write(output.read())
     print(f"📁 Excel saved to: {filename}")
     return output
 
-create_excel(output_data)
+create_excel_dynamic(json_data)
