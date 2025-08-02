@@ -15,7 +15,7 @@ class Record(BaseModel):
     Value: Optional[str]
 
     def dict(self, *args, **kwargs):
-        d = super().dict(*args, **kwargs)
+        d = super().model_dump(*args, **kwargs)
         d["Value"] = d["Value"] or ""  # Convert None to empty string for Excel
         return d
 
@@ -55,8 +55,8 @@ print(f"✅ File state: {uploaded_pdf.state}")
 def extract_financial_data(pdf_part):
     prompt = """
 You are a professional finance expert.
-Help me to extract these financial tables from the document:
-- Income Statement (Field, Value)
+Help me to extract full financial statement from the report:
+- Income Statement
 - Balance Sheet (Field, Value)
 - Cash Flow (Field, Value)
 
