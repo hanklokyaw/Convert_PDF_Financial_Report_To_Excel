@@ -45,10 +45,12 @@ Please extract the full Income Statement from the document.
 Instructions:
 1. Detect and return the unit of measurement (e.g., "USD", "USD in thousands", or "USD in millions") in a top-level field called `unit`. This is for informational purposes only.
 2. Regardless of unit, return **fully scaled numeric values** (e.g., 249625000).
-3. Return the Income Statement as a list of dictionaries, one row per metric, under the key `"Income Statement"`.
-4. Sort the years in descending order (e.g., "2024", "2023", "2022").
-5. If any additional line items not included in the template appear in the financial statement, insert them into the appropriate logical position.
-6. Output must be **strictly valid JSON**, with no markdown or explanation.
+3. If there is additional information such as "(amounts in millions, except per share data)", then add the per share titles "(not in millions)".
+4. Return the Income Statement as a list of dictionaries, one row per metric, under the key `"Income Statement"`.
+5. Sort the years in descending order (e.g., "2024", "2023", "2022").
+6. Can I spread the item into multiple columns in hierarchy form. Such as Revenue is an item in the first column, Net sales and Membership fees are sub items, Total revenue is the sum of sub items.
+7. If any additional line items not included in the template appear in the financial statement, insert them into the appropriate logical position.
+8. Output must be **strictly valid JSON**, with no markdown or explanation.
 
 Example format:
 
@@ -128,25 +130,42 @@ df_income = pd.DataFrame(json_data.get("Income Statement", []))
 print("\n📊 Income Statement Preview:")
 print(df_income.head())
 
+def normalize_unit(unit_str: str) -> str:
+    # Simple normalization - you can customize this
+    unit_str = unit_str.lower()
+    if "million" in unit_str:
+        return "millions"
+    elif "thousand" in unit_str:
+        return "thousands"
+    elif "billion" in unit_str:
+        return "billions"
+    else:
+        return unit_str
+
 # ---------- Write to Excel ----------
 def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_data_dynamic.xlsx") -> BytesIO:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Write all tables
         for section_name, section_data in json_data.items():
             if isinstance(section_data, list):
                 try:
                     df = pd.DataFrame(section_data)
                     if not df.empty:
-                        # Insert unit as header
-                        unit = json_data.get("unit", "")
-                        unit_row = pd.DataFrame([[unit] + [""] * (df.shape[1] - 1)], columns=df.columns)
-                        df = pd.concat([unit_row, df], ignore_index=True)
-
+                        unit = normalize_unit(json_data.get("unit", "USD"))
+                        df.columns = [
+                            col if col == "Metric" else f"{col} ({unit})" for col in df.columns
+                        ]
                     df.to_excel(writer, sheet_name=section_name[:31], index=False)
                 except Exception as e:
                     print(f"⚠️ Could not write sheet '{section_name}': {e}")
-            else:
-                print(f"ℹ️ Skipping non-table key: '{section_name}'")
+
+        # Write unit as a separate sheet or a cell
+        unit = json_data.get("unit", "")
+        if unit:
+            df_unit = pd.DataFrame([["Unit of Measurement", unit]])
+            df_unit.to_excel(writer, sheet_name="Metadata", index=False, header=False)
+
     output.seek(0)
     with open(filename, "wb") as f:
         f.write(output.read())
