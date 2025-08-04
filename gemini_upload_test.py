@@ -87,7 +87,6 @@ Example format:
 ⚠️ Do not explain anything. Return only valid JSON.
 
 Return **only valid JSON** and **do not add explanations**.
-
 """
     try:
         response = client.models.generate_content(
