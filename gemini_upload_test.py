@@ -160,11 +160,12 @@ def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_d
                 except Exception as e:
                     print(f"⚠️ Could not write sheet '{section_name}': {e}")
 
-        # Write unit as a separate sheet or a cell
-        unit = json_data.get("unit", "")
-        if unit:
-            df_unit = pd.DataFrame([["Unit of Measurement", unit]])
-            df_unit.to_excel(writer, sheet_name="Metadata", index=False, header=False)
+        # # ❌ Remove Metadata sheet
+        # # Write unit as a separate sheet or a cell
+        # unit = json_data.get("unit", "")
+        # if unit:
+        #     df_unit = pd.DataFrame([["Unit of Measurement", unit]])
+        #     df_unit.to_excel(writer, sheet_name="Metadata", index=False, header=False)
 
     output.seek(0)
     with open(filename, "wb") as f:
