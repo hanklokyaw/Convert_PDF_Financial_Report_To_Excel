@@ -5,7 +5,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 model_name = "gemini-2.0-flash"
 
-def extract_financial_data(pdf_part):
+def extract_income_statement(pdf_part):
     prompt = """
 You are a professional financial analyst.
 
