@@ -7,7 +7,7 @@ from io import BytesIO
 from typing import Dict, Any
 from google import genai
 from google.genai.types import Part
-from functions import extract_income_statement, extract_balance_sheet
+from functions import extract_income_statement, extract_balance_sheet, extract_cash_flow_statement
 
 # ---------- Config ----------
 api_key = os.getenv("GEMINI_API_KEY")
@@ -45,6 +45,7 @@ pdf_part = Part.from_uri(
 # ---------- Extract Statements ----------
 income_statement_response = extract_income_statement(pdf_part)
 balance_sheet_response = extract_balance_sheet(pdf_part)
+cash_flow_statement_response = extract_cash_flow_statement(pdf_part)
 
 # ---------- Utility to clean JSON from markdown wrappers ----------
 def extract_json_from_markdown(text: str) -> str:
@@ -76,6 +77,19 @@ try:
 except json.JSONDecodeError as e:
     print("❌ Balance Sheet JSON decode failed:", str(e))
     print("Balance Sheet Raw cleaned response:\n", cleaned_balance)
+    raise
+
+# ---------- Parse Cash Flow Statement ----------
+if not cash_flow_statement_response:
+    raise RuntimeError("❌ No response from Gemini for Balance Sheet.")
+
+try:
+    cleaned_cash_flow = extract_json_from_markdown(cash_flow_statement_response)
+    cash_flow_json = json.loads(cleaned_cash_flow)
+    json_data["Cash Flow Statement"] = cash_flow_json.get("Cash Flow Statement", [])
+except json.JSONDecodeError as e:
+    print("❌ Cash Flow Statement JSON decode failed:", str(e))
+    print("Cash Flow Statement Raw cleaned response:\n", cleaned_cash_flow)
     raise
 
 # ---------- Preview ----------
