@@ -122,3 +122,56 @@ Example format:
     except Exception as e:
         print(f"❌ API error (balance sheet): {e}")
         return None
+
+
+def extract_cash_flow_statement(pdf_part):
+    prompt = """
+You are a professional financial analyst.
+
+Please extract the full Cash Flow Statement from the document.
+
+Instructions:
+1. Detect and return the unit of measurement (e.g., "USD", "USD in thousands", or "USD in millions") in a top-level field called `unit`. This is for informational purposes only.
+2. Regardless of unit, return **fully scaled numeric values** (e.g., 249625000).
+3. Present the Cash Flow Statement as a hierarchy where high-level groups (Operating Activities, Investing Activities, Financing Activities) contain sub-items.
+4. Return the Cash Flow Statement as a list of dictionaries, one row per line item, under the key `"Cash Flow Statement"`.
+5. Sort the years in descending order (e.g., "2024", "2023", "2022").
+6. If any additional line items not included in the template appear in the financial statement, insert them into the appropriate logical position.
+7. Output must be **strictly valid JSON**, with no markdown or explanation.
+
+Example format:
+{
+  "Cash Flow Statement": [
+    { "Metric": "Operating Activities", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Net Income", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Depreciation & Amortization", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Change in Working Capital", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Other Operating Activities", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Investing Activities", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Capital Expenditures", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Purchases of Investments", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Other Investing Activities", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Financing Activities", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Dividends Paid", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Debt Issued (Repaid)", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "  Other Financing Activities", "2022": "", "2023": "", "2024": "" },
+
+    { "Metric": "Net Change in Cash", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Cash at Beginning of Period", "2022": "", "2023": "", "2024": "" },
+    { "Metric": "Cash at End of Period", "2022": "", "2023": "", "2024": "" }
+  ]
+}
+
+⚠️ Return only valid JSON. No markdown or explanation.
+"""
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[prompt, pdf_part],
+        )
+        return response.text
+    except Exception as e:
+        print(f"❌ API error (cash flow statement): {e}")
+        return None
