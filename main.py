@@ -1,151 +1,140 @@
-import streamlit as st
 import os
+import time
 import json
+import re
 import pandas as pd
 from io import BytesIO
-from typing import List
-from pydantic import BaseModel
-from PIL import Image
-import base64
-import google.ai.generativelanguage as glm
+from typing import Dict, Any
+from google import genai
+from google.genai.types import Part
+from functions import extract_income_statement, extract_balance_sheet, extract_cash_flow_statement
 
-# --- Configuration ---
+# ---------- Config ----------
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    st.error("❌ GEMINI_API_KEY environment variable not set")
-    st.stop()
+    raise EnvironmentError("❌ GEMINI_API_KEY environment variable must be set.")
 
-# Initialize client
-client = glm.GenerativeServiceClient(
-    client_options={"api_key": api_key}
+client = genai.Client(api_key=api_key)
+model_name = "gemini-2.0-flash"
+
+# ---------- Upload PDF ----------
+pdf_path = "input/sample_financial_report_COST-2024.pdf"
+assert os.path.exists(pdf_path), f"❌ File not found: {pdf_path}"
+
+print(f"📤 Uploading PDF: {pdf_path}")
+uploaded_pdf = client.files.upload(
+    path=pdf_path,
+    config={"mime_type": "application/pdf"}
 )
-model_name = "models/gemini-2.0-flash"
+print(f"✅ Uploaded: name={uploaded_pdf.name}, uri={uploaded_pdf.uri}")
 
+# ---------- Wait for processing ----------
+while uploaded_pdf.state == "PROCESSING":
+    print("⏳ Waiting for file to finish processing...")
+    time.sleep(2)
+    uploaded_pdf = client.files.get(name=uploaded_pdf.name)
 
-# --- Data Models ---
-class Record(BaseModel):
-    Field: str
-    Value: str
+print(f"✅ File state: {uploaded_pdf.state}")
 
+# ---------- Convert to Part ----------
+pdf_part = Part.from_uri(
+    file_uri=uploaded_pdf.uri,
+    mime_type="application/pdf"
+)
 
-class DocumentOutput(BaseModel):
-    income_statement: List[Record] = []
-    balance_sheet: List[Record] = []
-    cash_flow: List[Record] = []
+# ---------- Extract Statements ----------
+income_statement_response = extract_income_statement(pdf_part)
+balance_sheet_response = extract_balance_sheet(pdf_part)
+cash_flow_statement_response = extract_cash_flow_statement(pdf_part)
 
+# ---------- Utility to clean JSON from markdown wrappers ----------
+def extract_json_from_markdown(text: str) -> str:
+    if text.startswith("```json") or text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text.strip())
+        text = re.sub(r"\s*```$", "", text)
+    return text.strip()
 
-# --- Image Processing ---
-def process_image_to_base64(uploaded_file):
-    """Convert image to base64 string"""
-    img = Image.open(uploaded_file)
-    buffered = BytesIO()
-    img.save(buffered, format=img.format)
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+# ---------- Parse Income Statement ----------
+if not income_statement_response:
+    raise RuntimeError("❌ No response from Gemini for Income Statement.")
 
+try:
+    cleaned_income = extract_json_from_markdown(income_statement_response)
+    json_data: Dict[str, Any] = json.loads(cleaned_income)
+except json.JSONDecodeError as e:
+    print("❌ Income Statement JSON decode failed:", str(e))
+    print("Income Statement Raw cleaned response:\n", cleaned_income)
+    raise
 
-# --- Gemini API Call ---
-def extract_financial_data(image_base64, mime_type):
-    prompt = """
-    You are a professional finance expert. 
-    Help me to extract these financial tables:
-    - Income Statement (Field, Value)
-    - Balance Sheet (Field, Value) 
-    - Cash Flow (Field, Value)
+# ---------- Parse Balance Sheet ----------
+if not balance_sheet_response:
+    raise RuntimeError("❌ No response from Gemini for Balance Sheet.")
 
-    Return ONLY valid JSON:
-    {
-        "Income Statement": [{"Field":"...","Value":"..."}],
-        "Balance Sheet": [{"Field":"...","Value":"..."}],
-        "Cash Flow": [{"Field":"...","Value":"..."}]
-    }"""
+try:
+    cleaned_balance = extract_json_from_markdown(balance_sheet_response)
+    balance_json = json.loads(cleaned_balance)
+    json_data["Balance Sheet"] = balance_json.get("Balance Sheet", [])
+except json.JSONDecodeError as e:
+    print("❌ Balance Sheet JSON decode failed:", str(e))
+    print("Balance Sheet Raw cleaned response:\n", cleaned_balance)
+    raise
 
-    try:
-        # Create the content request
-        content = glm.Content(
-            parts=[
-                glm.Part(
-                    inline_data=glm.Blob(
-                        mime_type=mime_type,
-                        data=image_base64
-                    )
-                ),
-                glm.Part(text=prompt)
-            ]
-        )
+# ---------- Parse Cash Flow Statement ----------
+if not cash_flow_statement_response:
+    raise RuntimeError("❌ No response from Gemini for Balance Sheet.")
 
-        response = client.generate_content(
-            model=model_name,
-            contents=[content]
-        )
-        return response.candidates[0].content.parts[0].text
-    except Exception as e:
-        st.error(f"API Error: {str(e)}")
-        return None
+try:
+    cleaned_cash_flow = extract_json_from_markdown(cash_flow_statement_response)
+    cash_flow_json = json.loads(cleaned_cash_flow)
+    json_data["Cash Flow Statement"] = cash_flow_json.get("Cash Flow Statement", [])
+except json.JSONDecodeError as e:
+    print("❌ Cash Flow Statement JSON decode failed:", str(e))
+    print("Cash Flow Statement Raw cleaned response:\n", cleaned_cash_flow)
+    raise
 
+# ---------- Preview ----------
+df_income = pd.DataFrame(json_data.get("Income Statement", []))
+print("\n📊 Income Statement Preview:")
+print(df_income.head())
 
-# --- Excel Generation ---
-def create_excel(all_data):
+# ---------- Unit normalization ----------
+def normalize_unit(unit_str: str) -> str:
+    unit_str = unit_str.lower()
+    if "million" in unit_str:
+        return "millions"
+    elif "thousand" in unit_str:
+        return "thousands"
+    elif "billion" in unit_str:
+        return "billions"
+    else:
+        return unit_str
+
+# ---------- Write Excel ----------
+def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_data_dynamic.xlsx") -> BytesIO:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        for filename, data in all_data.items():
-            name = os.path.splitext(filename)[0][:25]
-            if data.income_statement:
-                pd.DataFrame([r.dict() for r in data.income_statement]).to_excel(
-                    writer, sheet_name=f"{name}_Income", index=False)
-            if data.balance_sheet:
-                pd.DataFrame([r.dict() for r in data.balance_sheet]).to_excel(
-                    writer, sheet_name=f"{name}_Balance", index=False)
+        for section_name, section_data in json_data.items():
+            if isinstance(section_data, list):
+                try:
+                    df = pd.DataFrame(section_data)
+                    if not df.empty:
+                        unit = normalize_unit(json_data.get("unit", "USD"))
+                        df.columns = [
+                            col if col == "Metric" else f"{col} ({unit})" for col in df.columns
+                        ]
+                    df.to_excel(writer, sheet_name=section_name[:31], index=False)
+                except Exception as e:
+                    print(f"⚠️ Could not write sheet '{section_name}': {e}")
+
     output.seek(0)
+    with open(filename, "wb") as f:
+        f.write(output.read())
+    print(f"📁 Excel saved to: {filename}")
     return output
 
+# ---------- Extract and show unit ----------
+unit = json_data.get("unit", "USD")
+print(f"\n📐 Unit of Measurement: {unit}")
 
-# --- Streamlit UI ---
-def main():
-    st.title("📷 Financial Data Extraction (Gemini 2.0 Flash)")
-
-    uploaded_files = st.file_uploader(
-        "Upload financial statement images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True
-    )
-
-    if uploaded_files and st.button("Process"):
-        with st.spinner("Analyzing images..."):
-            all_data = {}
-            for file in uploaded_files:
-                # Determine MIME type
-                mime_type = f"image/{file.name.split('.')[-1].lower()}"
-                if mime_type == "image/jpg":
-                    mime_type = "image/jpeg"
-
-                # Process image
-                image_base64 = process_image_to_base64(file)
-
-                # Get structured data
-                result = extract_financial_data(image_base64, mime_type)
-                if result:
-                    try:
-                        json_data = json.loads(result.strip())
-                        all_data[file.name] = DocumentOutput(
-                            income_statement=[Record(**r) for r in json_data.get("Income Statement", [])],
-                            balance_sheet=[Record(**r) for r in json_data.get("Balance Sheet", [])],
-                            cash_flow=[Record(**r) for r in json_data.get("Cash Flow", [])]
-                        )
-                    except json.JSONDecodeError as e:
-                        st.error(f"Failed to parse {file.name}: {str(e)}")
-                        st.code(result)  # Show raw response for debugging
-
-            # Generate Excel if we got data
-            if all_data:
-                excel_file = create_excel(all_data)
-                st.success("✅ Processing complete!")
-                st.download_button(
-                    "💾 Download Excel",
-                    excel_file,
-                    "financial_data.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-
-if __name__ == "__main__":
-    main()
+# ---------- Generate Excel ----------
+create_excel_dynamic(json_data)
