@@ -110,7 +110,10 @@ def normalize_unit(unit_str: str) -> str:
         return unit_str
 
 # ---------- Write Excel ----------
-def create_excel_dynamic(json_data: Dict[str, Any], filename: str = "financial_data_dynamic.xlsx") -> BytesIO:
+def create_excel_dynamic(json_data: Dict[str, Any], input_path: str) -> BytesIO:
+    base_name = os.path.splitext(os.path.basename(input_path))[0]  # get filename without extension
+    filename = f"{base_name}.xlsx"
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         for section_name, section_data in json_data.items():
@@ -137,4 +140,4 @@ unit = json_data.get("unit", "USD")
 print(f"\n📐 Unit of Measurement: {unit}")
 
 # ---------- Generate Excel ----------
-create_excel_dynamic(json_data)
+create_excel_dynamic(json_data, pdf_path)
