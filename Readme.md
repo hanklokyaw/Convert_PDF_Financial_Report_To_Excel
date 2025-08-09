@@ -1,108 +1,102 @@
-# 📊 Financial Report Extractor (PDF/Image → Excel) with Gemini
+# Financial Report Extractor (PDF → Excel)
 
-A Streamlit web app that converts PDFs or images of financial reports into structured multi-sheet Excel files using Google Gemini's GenAI multimodal capabilities.
-
----
-
-## 🔧 Features
-
-- Validates presence of `GEMINI_API_KEY` environment variable.
-- Converts PDF pages to images using `pdf2image` + Poppler.
-- Uses `google-genai` SDK with `types.Part.from_bytes()` for Gemini inputs.
-- Parses JSON responses from Gemini.
-- Outputs an Excel workbook with separate sheets for **Income Statement**, **Balance Sheet**, **Cash Flow Statement**.
-- Preview data in-app and download the result.
+This project extracts **Income Statement**, **Balance Sheet**, and **Cash Flow Statement** data from a PDF financial report using **Google Gemini API**, then saves the results into an Excel file with the same base name as the input PDF.
 
 ---
 
-## ⚙️ Setup Instructions
+## 📂 Project Structure
+```
+project/
+├── main.py
+├── functions.py
+├── requirements.txt
+├── README.md
+└── input/
+    └── sample_financial_report_COST-2024.pdf
+```
 
-### 1. Clone & install dependencies
+---
+
+## 🚀 Setup Instructions
+
+### 1️⃣ Create and Activate a Virtual Environment
 ```bash
-git clone <repo-url>
-cd <project-folder>
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+```
+
+### 2️⃣ Install Dependencies
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Install Poppler (required by pdf2image)
-Windows:
-Download Poppler from Poppler releases, extract, and add the Library\bin folder to your System PATH.
+---
 
-- macOS:
-```bash
-brew install poppler
+## 🔑 Set Up API Key
+You must have a **Google Gemini API key**.
+
+Set it as an environment variable:
+
+**Windows (Powershell)**
+```powershell
+setx GEMINI_API_KEY "your_api_key_here"
 ```
 
-- Linux:
-```bash
-sudo apt-get install poppler-utils
-```
-
-### 3. Obtain and set your Gemini API key
-Set the environment variable:
-
-- macOS/Linux:
+**macOS/Linux**
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
 ```
 
-- Windows (PowerShell):
-```bash
-$Env:GEMINI_API_KEY = "your_api_key_here"
-```
-
-Ensure your key has access to Gemini multimodal model (gemini-2.5-flash or newer).
-
 ---
 
-## 🚀 Run the App
+## ▶️ Run the Script
+Place your PDF financial report in the `input/` folder and update the `pdf_path` in `main.py` if needed.
 
 ```bash
-streamlit run main.py
+python main.py
 ```
 
 ---
 
-## 🧩 Code Example (Multimodal Part Input)
+## 📄 Output
+The script:
+1. Uploads the PDF to the Gemini API.
+2. Extracts **Income Statement**, **Balance Sheet**, and **Cash Flow Statement**.
+3. Cleans and formats the data.
+4. Saves the extracted data to an **Excel file** with the same base name as the PDF.
 
-```python
-from google import genai
-from google.genai import types
-
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-part = types.Part.from_bytes(
-    data=uploaded_file.getvalue(),
-    mime_type=uploaded_file.type
-)
-
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=[EXTRACTION_PROMPT, part]
-)
+Example:
+```
+input/sample_financial_report_COST-2024.pdf
+⬇
+sample_financial_report_COST-2024.xlsx
 ```
 
 ---
 
-## 📌 Notes & Tips
-
-- PDFs are converted to images page-by-page, allowing Gemini to process each page separately.
-- Expect one JSON response per page—even if it means merging results.
-- Ensure GEMINI_API_KEY remains secret; avoid pushing it to source control.
-- Files over 20 MB should be handled with caution as requests may fail.
+## 🛠 Requirements
+- Python 3.8+
+- Google Gemini API Key
+- Internet connection
 
 ---
 
-## 🧪 Testing
-
-Drop in various report formats and verify:
-
-- JSON structure correctness.
-- Excel sheets creation.
-- Preview looks accurate.
+## 📦 Dependencies
+See `requirements.txt`:
+```
+pandas
+openpyxl
+google-generativeai
+```
 
 ---
 
-## 📖 License
+## ⚠️ Notes
+- The PDF should be machine-readable (not scanned images without OCR).
+- The API might take a few seconds to process the file.
+- Only **valid JSON** output from the model is parsed; if JSON decoding fails, the script will print the raw model response.
 
-MIT © Hank Kyaw
+---
