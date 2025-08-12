@@ -18,7 +18,8 @@ client = genai.Client(api_key=api_key)
 model_name = "gemini-2.0-flash"
 
 # ---------- Upload PDF ----------
-pdf_path = "input/sample_financial_report_COST-2024.pdf"
+# pdf_path = "input/sample_financial_report_COST-2024.pdf"
+pdf_path = "input/2024-Annual-Report-Target-Corporation.pdf"
 assert os.path.exists(pdf_path), f"❌ File not found: {pdf_path}"
 
 print(f"📤 Uploading PDF: {pdf_path}")
@@ -111,8 +112,10 @@ def normalize_unit(unit_str: str) -> str:
 
 # ---------- Write Excel ----------
 def create_excel_dynamic(json_data: Dict[str, Any], input_path: str) -> BytesIO:
-    base_name = os.path.splitext(os.path.basename(input_path))[0]  # get filename without extension
-    filename = f"{base_name}.xlsx"
+    base_name = os.path.splitext(os.path.basename(input_path))[0]  # filename without extension
+    output_folder = "output"
+    os.makedirs(output_folder, exist_ok=True)  # create folder if it doesn't exist
+    filename = os.path.join(output_folder, f"{base_name}.xlsx")  # full path
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
