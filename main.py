@@ -7,6 +7,7 @@ from io import BytesIO
 from typing import Dict, Any
 from google import genai
 from google.genai.types import Part
+from datetime import datetime
 from functions import extract_income_statement, extract_balance_sheet, extract_cash_flow_statement
 
 # ---------- Config ----------
@@ -16,6 +17,10 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 model_name = "gemini-2.0-flash"
+
+log_file = "convert_pdf_log.txt"
+status = "succeed"
+dest_path = None
 
 # ---------- Upload PDF ----------
 # pdf_path = "input/sample_financial_report_COST-2024.pdf"
@@ -137,6 +142,36 @@ def create_excel_dynamic(json_data: Dict[str, Any], input_path: str) -> BytesIO:
         f.write(output.read())
     print(f"📁 Excel saved to: {filename}")
     return output
+
+# ---------- Generate Excel with logging ----------
+try:
+    output_data = create_excel_dynamic(json_data, pdf_path)
+
+    # Determine destination file path
+    base_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    output_folder = "output"
+    dest_path = os.path.join(output_folder, f"{base_name}.xlsx")
+
+except Exception as e:
+    status = "failed"
+    print(f"❌ Conversion failed: {e}")
+
+finally:
+    try:
+        src_size = os.path.getsize(pdf_path) if os.path.exists(pdf_path) else 0
+        dest_size = os.path.getsize(dest_path) if dest_path and os.path.exists(dest_path) else 0
+
+        log_entry = f"{os.path.basename(pdf_path)}\t{src_size}\t{status}\t" \
+                    f"{os.path.basename(dest_path) if dest_path else ''}\t{dest_size}\t" \
+                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+
+        with open(log_file, "a", encoding="utf-8") as lf:
+            lf.write(log_entry)
+
+        print(f"📝 Log updated: {log_file}")
+
+    except Exception as log_err:
+        print(f"⚠️ Failed to write log: {log_err}")
 
 # ---------- Extract and show unit ----------
 unit = json_data.get("unit", "USD")
