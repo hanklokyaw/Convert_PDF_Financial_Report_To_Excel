@@ -1,102 +1,127 @@
-# Financial Report Extractor (PDF → Excel)
+# 📂 PDF Financial Report to Excel Converter
 
-This project extracts **Income Statement**, **Balance Sheet**, and **Cash Flow Statement** data from a PDF financial report using **Google Gemini API**, then saves the results into an Excel file with the same base name as the input PDF.
+This project converts PDF-based **financial statements** (Income
+Statement, Balance Sheet, and Cash Flow Statement) into **structured
+Excel files** using the **Google Gemini API**.\
+It provides both a **command-line backend** (`main.py`) and a
+**Streamlit-based web frontend** (`front_end.py`).
 
----
+------------------------------------------------------------------------
 
-## 📂 Project Structure
-```
-project/
-├── main.py
-├── functions.py
-├── requirements.txt
-├── README.md
-└── input/
-    └── sample_financial_report_COST-2024.pdf
-```
+## 🚀 Features
 
----
+-   Upload financial report PDFs.
+-   Extract **Income Statement, Balance Sheet, and Cash Flow
+    Statement**.
+-   Normalize units (millions, thousands, billions, etc.).
+-   Export results into **Excel with multiple sheets**.
+-   Maintain a **conversion log file** (`convert_pdf_log.txt`).
+-   Interactive **web UI** using Streamlit.
 
-## 🚀 Setup Instructions
+------------------------------------------------------------------------
 
-### 1️⃣ Create and Activate a Virtual Environment
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-```
+## 📦 Installation
 
-### 2️⃣ Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+1.  Clone the repository:
 
----
+    ``` bash
+    git clone https://github.com/your-repo/pdf-to-excel.git
+    cd pdf-to-excel
+    ```
 
-## 🔑 Set Up API Key
-You must have a **Google Gemini API key**.
+2.  Create a virtual environment (recommended):
 
-Set it as an environment variable:
+    ``` bash
+    python -m venv venv
+    source venv/bin/activate   # macOS/Linux
+    venv\Scripts\activate      # Windows
+    ```
 
-**Windows (Powershell)**
-```powershell
-setx GEMINI_API_KEY "your_api_key_here"
-```
+3.  Install dependencies:
 
-**macOS/Linux**
-```bash
-export GEMINI_API_KEY="your_api_key_here"
-```
+    ``` bash
+    pip install -r requirements.txt
+    ```
 
----
+------------------------------------------------------------------------
 
-## ▶️ Run the Script
-Place your PDF financial report in the `input/` folder and update the `pdf_path` in `main.py` if needed.
+## 🔑 Setup Google Gemini API
 
-```bash
+This project uses the **Google Gemini API**.
+
+1.  Get an API key from [Google AI
+    Studio](https://aistudio.google.com/).
+
+2.  Set the environment variable:
+
+    ``` bash
+    export GEMINI_API_KEY="your_api_key_here"   # macOS/Linux
+    set GEMINI_API_KEY=your_api_key_here        # Windows PowerShell
+    ```
+
+------------------------------------------------------------------------
+
+## ▶️ Usage
+
+### 1. Command-Line Mode
+
+Run conversion directly:
+
+``` bash
 python main.py
 ```
 
----
+(Modify `main.py` to pass the PDF path if running standalone.)
 
-## 📄 Output
-The script:
-1. Uploads the PDF to the Gemini API.
-2. Extracts **Income Statement**, **Balance Sheet**, and **Cash Flow Statement**.
-3. Cleans and formats the data.
-4. Saves the extracted data to an **Excel file** with the same base name as the PDF.
+### 2. Web App Mode
+
+Run Streamlit UI:
+
+``` bash
+streamlit run front_end.py
+```
+
+Then open the browser at <http://localhost:8501>.
+
+------------------------------------------------------------------------
+
+## 📁 File Structure
+
+    project/
+    │── main.py              # Backend PDF processing & Excel export
+    │── front_end.py         # Streamlit frontend
+    │── functions.py         # Gemini API extraction functions
+    │── requirements.txt     # Dependencies
+    │── README.md            # Documentation
+    │── output/              # Generated Excel files
+    │── uploads/             # Uploaded PDF files
+    │── convert_pdf_log.txt  # Conversion log
+
+------------------------------------------------------------------------
+
+## 📝 Log File Format
+
+The log file `convert_pdf_log.txt` keeps a record of each conversion
+with:
+
+    SourceFileName   SourceFileSize   Status   DestinationFileName   DestinationFileSize   ConvertedDatetime
 
 Example:
-```
-input/sample_financial_report_COST-2024.pdf
-⬇
-sample_financial_report_COST-2024.xlsx
-```
 
----
+    sample_report.pdf   204800   succeed   sample_report.xlsx   50432   2025-08-15 10:32:45
 
-## 🛠 Requirements
-- Python 3.8+
-- Google Gemini API Key
-- Internet connection
-
----
-
-## 📦 Dependencies
-See `requirements.txt`:
-```
-pandas
-openpyxl
-google-generativeai
-```
-
----
+------------------------------------------------------------------------
 
 ## ⚠️ Notes
-- The PDF should be machine-readable (not scanned images without OCR).
-- The API might take a few seconds to process the file.
-- Only **valid JSON** output from the model is parsed; if JSON decoding fails, the script will print the raw model response.
 
----
+-   Requires a valid **Google Gemini API key**.
+-   Excel output includes **separate sheets** for each financial
+    statement.
+-   Units are automatically normalized (e.g., USD in millions → numbers
+    fully scaled).
+
+------------------------------------------------------------------------
+
+## 📌 License
+
+MIT License
