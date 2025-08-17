@@ -3,7 +3,6 @@ import time
 import json
 import re
 import pandas as pd
-from io import BytesIO
 from typing import Dict, Any
 from google import genai
 from google.genai.types import Part
