@@ -1,5 +1,7 @@
+# import requires libraries
 import streamlit as st
 import os
+# import from main.py
 from main import process_pdf_to_excel
 
 st.set_page_config(page_title="PDF to Excel Converter", page_icon="📂")

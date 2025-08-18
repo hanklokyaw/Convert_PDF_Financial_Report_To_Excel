@@ -1,3 +1,4 @@
+# import requires libraries
 from google import genai
 import os
 

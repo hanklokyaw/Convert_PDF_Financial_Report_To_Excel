@@ -1,3 +1,4 @@
+# import requires libraries
 import os
 import time
 import json
@@ -7,6 +8,7 @@ from typing import Dict, Any
 from google import genai
 from google.genai.types import Part
 from datetime import datetime
+# import from functions.py
 from functions import extract_income_statement, extract_balance_sheet, extract_cash_flow_statement
 
 api_key = os.getenv("GEMINI_API_KEY")
