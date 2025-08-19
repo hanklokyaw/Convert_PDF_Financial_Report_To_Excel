@@ -3,8 +3,13 @@ import streamlit as st
 import os
 # import from main.py
 from main import process_pdf_to_excel
+import datetime as dt
 
 st.set_page_config(page_title="PDF to Excel Converter", page_icon="📂")
+
+# Show today's date
+today = dt.date.today().strftime("%B %d, %Y")  # Example: January 18, 2025
+st.title(f"📅 {today}")
 
 st.title("📂 Convert PDF Financial Report to Excel")
 
