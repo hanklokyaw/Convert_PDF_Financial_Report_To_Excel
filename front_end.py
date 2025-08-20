@@ -1,6 +1,7 @@
-# import requires libraries
+# import required libraries
 import streamlit as st
 import os
+import pandas as pd
 # import from main.py
 from main import process_pdf_to_excel
 import datetime as dt
@@ -27,6 +28,16 @@ if uploaded_file is not None:
         try:
             excel_path = process_pdf_to_excel(save_path)
             st.success("✅ Conversion completed!")
+
+            # 🔹 Preview Excel in DataFrame
+            try:
+                df = pd.read_excel(excel_path)
+                st.subheader("📊 Preview of Extracted Data")
+                st.dataframe(df.head(50))  # show first 50 rows
+            except Exception as e:
+                st.warning(f"⚠ Could not preview Excel file: {e}")
+
+            # 🔹 Download button
             with open(excel_path, "rb") as f:
                 st.download_button(
                     label="📥 Download Excel file",
@@ -34,5 +45,6 @@ if uploaded_file is not None:
                     file_name=os.path.basename(excel_path),
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
         except Exception as e:
             st.error(f"❌ Error: {e}")
