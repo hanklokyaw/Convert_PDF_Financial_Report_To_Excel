@@ -10,7 +10,7 @@ st.set_page_config(page_title="PDF to Excel Converter", page_icon="📂")
 
 # Show today's date
 today = dt.date.today().strftime("%B %d, %Y")  # Example: January 18, 2025
-st.title(f"📅 {today}")
+st.markdown(f"#### 📅 {today}")  # H4 size
 
 st.title("📂 Convert PDF Financial Report to Excel")
 
