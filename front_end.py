@@ -18,31 +18,33 @@ uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
 
 if uploaded_file is not None:
     os.makedirs("uploads", exist_ok=True)
+    os.makedirs("output", exist_ok=True)
+
     save_path = os.path.join("uploads", uploaded_file.name)
 
-    # Save uploaded file temporarily to check size
+    # Save uploaded file locally
     with open(save_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
     uploaded_size = os.path.getsize(save_path)
 
-    # Expected Excel output file path (same name but .xlsx)
-    excel_path = os.path.splitext(save_path)[0] + ".xlsx"
+    # Expected Excel output file path
+    excel_path = os.path.join("output", os.path.splitext(uploaded_file.name)[0] + ".xlsx")
+    size_record_path = excel_path + ".size"
 
-    # 🔹 Check if Excel already exists and matches file size
+    # Check if cached result exists
     processed_before = False
-    size_record_path = excel_path + ".size"  # store original PDF size for comparison
-
     if os.path.exists(excel_path) and os.path.exists(size_record_path):
         with open(size_record_path, "r") as sf:
             recorded_size = int(sf.read().strip())
         if recorded_size == uploaded_size:
             processed_before = True
 
+    # If file already processed
     if processed_before:
-        st.info(f"ℹ️ File '{uploaded_file.name}' was already processed before. Skipping reprocessing.")
+        st.info(f"ℹ️ File '{uploaded_file.name}' was already processed. Using cached result.")
 
-        # Preview existing Excel
+        # Preview Excel
         try:
             df = pd.read_excel(excel_path)
             st.subheader("📊 Preview of Extracted Data (Cached Result)")
@@ -50,14 +52,42 @@ if uploaded_file is not None:
         except Exception as e:
             st.warning(f"⚠ Could not preview Excel file: {e}")
 
-        # Provide download button
+        # Download cached file
         with open(excel_path, "rb") as f:
             st.download_button(
-                label="📥 Download Excel file",
+                label="📥 Download Cached Excel file",
                 data=f,
                 file_name=os.path.basename(excel_path),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
+        # Button to reprocess anyway
+        if st.button("♻️ Reprocess Anyway"):
+            with st.spinner("Reprocessing file... Please wait"):
+                try:
+                    excel_path = process_pdf_to_excel(save_path)
+                    with open(size_record_path, "w") as sf:
+                        sf.write(str(uploaded_size))
+                    st.success("✅ Reprocessing completed!")
+
+                    # Show updated preview
+                    try:
+                        df = pd.read_excel(excel_path)
+                        st.subheader("📊 Preview of Extracted Data (Reprocessed)")
+                        st.dataframe(df.head(50))
+                    except Exception as e:
+                        st.warning(f"⚠ Could not preview Excel file: {e}")
+
+                    # New download
+                    with open(excel_path, "rb") as f:
+                        st.download_button(
+                            label="📥 Download New Excel file",
+                            data=f,
+                            file_name=os.path.basename(excel_path),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                except Exception as e:
+                    st.error(f"❌ Error during reprocess: {e}")
 
     else:
         st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
@@ -66,13 +96,13 @@ if uploaded_file is not None:
             try:
                 excel_path = process_pdf_to_excel(save_path)
 
-                # Save file size record for future cache check
+                # Save file size for caching
                 with open(size_record_path, "w") as sf:
                     sf.write(str(uploaded_size))
 
                 st.success("✅ Conversion completed!")
 
-                # Preview Excel
+                # Preview
                 try:
                     df = pd.read_excel(excel_path)
                     st.subheader("📊 Preview of Extracted Data")
@@ -88,6 +118,5 @@ if uploaded_file is not None:
                         file_name=os.path.basename(excel_path),
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-
             except Exception as e:
                 st.error(f"❌ Error: {e}")
